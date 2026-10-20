@@ -1,0 +1,98 @@
+$(eval $(call start_package))
+OPENSSH?=openssh-10.3p1
+
+PACKAGE=openssh
+
+ARCHIVE_NAME:=hpn-18.9.0.tar.gz
+ARCHIVE_EXTRACTED_DIR:=hpn-ssh-hpn-18.9.0
+SOURCE_DIR_NAME:=$(OPENSSH)
+#TODO: randomly select mirror?
+DOWNLOAD_URL:=https://github.com/rapier1/hpn-ssh/archive/refs/tags/hpn-18.9.0.tar.gz
+
+CFLAGS+=-I$(BUILD_DIR)/openssl/include
+LDFLAGS+=-L$(BUILD_DIR)/openssl/
+
+PACKAGE_INSTALLED_FILES:= $(BUILD_DIR)/usr/bin/hpnssh             \
+                          $(BUILD_DIR)/usr/bin/hpnsshd            \
+                          $(BUILD_DIR)/usr/bin/hpnsshd-session    \
+                          $(BUILD_DIR)/usr/bin/hpnsshd-auth       \
+                          $(BUILD_DIR)/usr/bin/hpnsftp            \
+                          $(BUILD_DIR)/usr/bin/hpnscp             \
+                          $(BUILD_DIR)/usr/bin/hpnsftp-server     \
+                          $(BUILD_DIR)/usr/bin/hpnssh-keygen
+
+PACKAGE_WANT_PREPARE=true
+
+define pkg-targets
+$(BUILD_DIR)/$(PACKAGE)/stamp.configured: $(SRC_DIR)/$(PACKAGE)/stamp.prepared $(call depend-built,openssl)
+	mkdir -p $(BUILD_DIR)/$(PACKAGE)
+	cd "$(BUILD_DIR)/$(PACKAGE)";                                                          \
+	PATH=$(EXTRA_PATH):$(PATH) $(SRC_DIR)/$(PACKAGE)/$(OPENSSH)/configure \
+	  --build x86_64-pc-linux-gnu --host $(CROSS)                                          \
+	  LD="$(LD)" CC="$(CC)"                                                                \
+	  CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)"                                              \
+	  CPPFLAGS="$(CFLAGS) -DHAVE_ATTRIBUTE__SENTINEL__=1 -DHAVE__RES_EXTERN=1"             \
+	  --disable-utmpx --disable-utmp --disable-wtmp --disable-wtmpx                        \
+	  --sysconfdir=/data/ssh --with-pid-dir=/data/ssh                                      \
+	  --libexecdir=/system/usr/libexec/ssh-core                                            \
+	  --with-maildir=/var/mail                                                             \
+	  --with-default-path="/system/bin:/system/xbin:/system/sbin:/magisk/ssh/usr/bin"      \
+	  --with-superuser-path="/system/bin:/system/xbin:/system/sbin:/magisk/ssh/usr/bin"    \
+	  --with-privsep-user=root --with-privsep-path=/
+	sed -i -e 's:/\* #undef HAVE_MBLEN \*/:#define HAVE_MBLEN 1:'                          \
+	       -e 's:/\* #undef HAVE_ENDGRENT \*/:#define HAVE_ENDGRENT 1:'                    \
+	       -e 's:/\* #undef HAVE_BZERO \*/:#define HAVE_BZERO 1:'                          \
+	    $(BUILD_DIR)/$(PACKAGE)/config.h
+	$(make-configured-stamp)
+
+
+ifneq ($(IS_SRC_$(PACKAGE)_TARGET_PREPARED),true)
+IS_SRC_$(PACKAGE)_TARGET_PREPARED:=true
+$(SRC_DIR)/$(PACKAGE)/stamp.prepared: $(SRC_DIR)/$(PACKAGE)/stamp.unpacked
+	cd "$(SRC_DIR)/$(PACKAGE)/$(OPENSSH)"; patch -p1 < "$(ROOT_DIR)/patches/$(OPENSSH).patch"
+	$(make-prepared-stamp)
+endif
+
+$(BUILD_DIR)/usr/bin/hpnssh: $(BUILD_DIR)/$(PACKAGE)/stamp.built
+	mkdir -p $(BUILD_DIR)/usr/bin/
+	cp -u "$(BUILD_DIR)/$(PACKAGE)/hpnssh" "$(BUILD_DIR)/usr/bin/hpnssh"
+	$(STRIP) "$(BUILD_DIR)/usr/bin/hpnssh"
+
+$(BUILD_DIR)/usr/bin/hpnsshd: $(BUILD_DIR)/$(PACKAGE)/stamp.built
+	mkdir -p $(BUILD_DIR)/usr/bin/
+	cp -u "$(BUILD_DIR)/$(PACKAGE)/hpnsshd" "$(BUILD_DIR)/usr/bin/hpnsshd"
+	$(STRIP) "$(BUILD_DIR)/usr/bin/hpnsshd"
+
+$(BUILD_DIR)/usr/bin/hpnsshd-session: $(BUILD_DIR)/$(PACKAGE)/stamp.built
+	mkdir -p $(BUILD_DIR)/usr/bin/
+	cp -u "$(BUILD_DIR)/$(PACKAGE)/hpnsshd-session" "$(BUILD_DIR)/usr/bin/hpnsshd-session"
+	$(STRIP) "$(BUILD_DIR)/usr/bin/hpnsshd-session"
+
+$(BUILD_DIR)/usr/bin/hpnsshd-auth: $(BUILD_DIR)/$(PACKAGE)/stamp.built
+	mkdir -p $(BUILD_DIR)/usr/bin/
+	cp -u "$(BUILD_DIR)/$(PACKAGE)/hpnsshd-auth" "$(BUILD_DIR)/usr/bin/hpnsshd-auth"
+	$(STRIP) "$(BUILD_DIR)/usr/bin/hpnsshd-auth"
+
+$(BUILD_DIR)/usr/bin/hpnsftp: $(BUILD_DIR)/$(PACKAGE)/stamp.built
+	mkdir -p $(BUILD_DIR)/usr/bin/
+	cp -u "$(BUILD_DIR)/$(PACKAGE)/hpnsftp" "$(BUILD_DIR)/usr/bin/hpnsftp"
+	$(STRIP) "$(BUILD_DIR)/usr/bin/hpnsftp"
+
+$(BUILD_DIR)/usr/bin/hpnscp: $(BUILD_DIR)/$(PACKAGE)/stamp.built
+	mkdir -p $(BUILD_DIR)/usr/bin/
+	cp -u "$(BUILD_DIR)/$(PACKAGE)/hpnscp" "$(BUILD_DIR)/usr/bin/hpnscp"
+	$(STRIP) "$(BUILD_DIR)/usr/bin/hpnscp"
+
+$(BUILD_DIR)/usr/bin/hpnsftp-server: $(BUILD_DIR)/$(PACKAGE)/stamp.built
+	mkdir -p $(BUILD_DIR)/usr/bin/
+	cp -u "$(BUILD_DIR)/$(PACKAGE)/hpnsftp-server" "$(BUILD_DIR)/usr/bin/hpnsftp-server"
+	$(STRIP) "$(BUILD_DIR)/usr/bin/hpnsftp-server"
+
+$(BUILD_DIR)/usr/bin/hpnssh-keygen: $(BUILD_DIR)/$(PACKAGE)/stamp.built
+	mkdir -p $(BUILD_DIR)/usr/bin/
+	cp -u "$(BUILD_DIR)/$(PACKAGE)/hpnssh-keygen" "$(BUILD_DIR)/usr/bin/hpnssh-keygen"
+	$(STRIP) "$(BUILD_DIR)/usr/bin/hpnssh-keygen"
+
+endef
+
+$(eval $(package))

@@ -1,0 +1,6 @@
+id=ssh
+name=MagiskSSH HPN
+version=v0.29-hpn
+versionCode=29
+author=D4rCM4rC and Contributors
+description=HPN-SSH and Rsync bundled with simple start scripts for Android with Magisk

@@ -1,0 +1,130 @@
+This project is abandoned (HPN-SSH source variant)
+=====================================================
+=========================
+
+At the moment, I don't have a rooted device, which means that I'm not able to
+test my builds.
+As it's not usually much work, I may still occasionally bump the versions of
+OpenSSL, openSSH and Rsync and push that, although that may happen much less
+often than previously.
+Still, as it would be negligent to just push untested stuff to the auto updater,
+I'll leave the update.json at the last version I was able to test myself, 0.27.
+
+a
+An SSH server for Android devices having Magisk (build system)
+==============================================================
+
+This is my WIP for a fully functional system-daemon-like SSH server for Android devices.
+
+Its core is HPN-SSH (based on OpenSSH), with the original MagiskSSH Android compatibility patch and build system. It also includes rsync (which actually was my main motivation for this project). It will be available for devices using the architectures arm, arm64, x86, x86_64.
+
+This repository is a collection of build scripts for simply building an installable Magisk module. It can not be installed itself. Once I have a working installable package, I will link it here.
+
+It should run on all devices with Android API version 24 or higher (Android 7.0 Nougat and higher) that have [Magisk](https://github.com/topjohnwu/Magisk) installed. It includes binaries for arm, arm64, x86, x86_64. However I only tested it on my arm64 Samsung Galaxy S10+ running LineageOS 20.
+
+## Download and Install
+
+The module can be downloaded in the [Releases repository](https://gitlab.com/d4rcm4rc/MagiskSSH_releases). Once Gitlab raises their size limit on tag-attachments, the releases will migrate there. Further hints for installation, configuration and usage can be found [in the module's README.md](module_data/README.md).
+
+You don't trust me and don't want to use binaries I compiled? No problem at all! Just head to [How To Build](#how-to-build), grab the source code, check it and compile it yourself.
+
+
+## Used Packages and Included Resources
+
+* [OpenSSL](https://www.openssl.org/) (only needed for its libcrypto)
+* [HPN-SSH](https://github.com/rapier1/hpn-ssh) (based on OpenSSH)
+* [Rsync](https://rsync.samba.org/)
+* [Magisk Module Template](https://github.com/topjohnwu/magisk-module-template)
+
+Some changes to OpenSSH are used from [Arachnoid's SSHelper](https://arachnoid.com/android/SSHelper/). Also I have to partially ship a version of `resolv.h` from my system. It is, as far as I can tell, an 'internal-only' header and not included in the Android NDK. Still OpenSSH somehow needs it to compile.
+
+## HPN-SSH changes
+
+This fork keeps the original MagiskSSH Make-based multi-architecture build, package rules,
+OpenSSL/Rsync build, Android patching model, and Magisk module packaging. The OpenSSH source
+is replaced with HPN-SSH tag `hpn-18.9.0` (based on OpenSSH 10.3p1). Native executable names
+are preserved: `hpnssh`, `hpnsshd`, `hpnscp`, `hpnsftp`, `hpnssh-keygen`, and the HPN helper
+binaries. The Android compatibility patch is the existing `openssh-10.3p1.patch`, matching
+the OpenSSH base version of HPN-SSH 18.9.0.
+
+The GitHub Actions workflow bootstraps the archive checksum for this HPN tag using the
+repository's existing TOFU checksum target, then runs the original `all_arches.mk` build.
+The first CI run must therefore be treated as a source-fetch/build validation, not as a
+pre-verified release artifact.
+
+## How To Build
+
+    <clone or download>
+    cd <source dir>
+    mkdir -p build dl src
+    cd build
+    # Create the initial HPN source checksum (only needed when not present)
+    make -f ../all_arches.mk update_openssh_with_tofu
+    make -f ../all_arches.mk -j8 zip
+
+A zip file will be created in the build-directory. It can be copied to the Android device and installed via the Magisk Manager app.
+
+On my i7-6700k a full build using all cores takes about 4 minutes.
+The Android-NDK path is set to `/opt/android-ndk` per default. It can be changed by passing `ANDROID_ROOT=/path/to/ndk` to make or exporting it:
+
+    ...
+    export ANDROID_ROOT=/path/to/ndk
+    make -f ../all_arches.mk -j8 zip
+
+## Build Dependencies
+
+* Recent GNU/Linux system on amd64
+* Make. Only tested using GNU Make 4.4.1
+* Wget. Only tested using GNU Wget 1.25.0
+* Android NDK. Only tested using version r29
+* Python3. Only tested using Python 3.14.6
+* 7z (or zip as fallback). Only tested 26.02
+
+Newer versions generally should work. Older versions may work or may not.
+
+## Version bumping OpenSSL and rsync
+
+A version bump for these two packages is pretty straightforward:
+
+- Enter the new version in openssl.mk or rsync.mk
+- these commands will download and generate checksums for each package:
+  - `make -f all_arches.mk update_openssl_with_tofu`
+  - `make -f all_arches.mk update_rsync_with_tofu`
+- Update the module version and go through the checklist
+- Delete build and src directories and rebuild the whole module
+
+## Version bumping OpenSSH
+
+A version bump for OpenSSH is more difficult. Basically, the same steps as for OpenSSL and rsync are required.
+OpenSSH however also needs a patch which is different for every version.
+To generate one for a new version do this:
+
+- Unpack the new version's source to a directory twice (ie. `tar xzf openssh-version.tar.gz; mv openssh-version a; cp -a a b`)
+- Try to apply the patch to b, it will not patch without issues (`cd b; patch -p1 < path/to/previous.patch`)
+- Fix all errors and warnings
+- Remove the pre-patch backups and reject files
+- Possibly add more changes. Candidates are:
+  - Calls to getpwnam
+  - Calls to getpwuid
+  - Direct uses of /tmp as path for temporary files
+- Generate a new patch (`diff -urN a b > path/to/new.patch`)
+- Try to build the module. If not possible, fix errors and generate a new patch
+
+## Checklist for a new version
+
+- All packages have the correct version
+- For all updated packages checksum files have been generated
+- A new version is entered in module_data/module.prop under both `version` and `versionCode`
+- The module_data/README.md is updated to include the new package versions
+- An entry in the changelog in module_data/README.md is added
+
+Then we can create a full build (delete _build_ directory first), upload it to
+the releases repository and update the update.json in here.
+
+## License
+
+This program is under the GPLv3. It downloads and bundles software with different licenses:
+
+* OpenSSL [OpenSSL License](https://www.openssl.org/source/license.html)
+* OpenSSH [BSD License](https://www.openbsd.org/policy.html)
+* Rsync [GPL v3](https://rsync.samba.org/GPL.html)
