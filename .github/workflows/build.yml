@@ -1,53 +1,45 @@
-name: Build MagiskSSH HPN
+name: Build MagiskSSH
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '**.mk'
-      - 'patches/**'
-      - 'checksums/**'
-      - 'module_data/**'
-      - '.github/workflows/build.yml'
-
-permissions:
-  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential make wget python3 p7zip-full zip patch
+          sudo apt-get install -y \
+            make \
+            wget \
+            python3 \
+            p7zip-full \
+            perl \
+            autoconf \
+            patch \
+            zip
 
-      - name: Install Android SDK and NDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Android NDK r29
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r29
 
-      - name: Install NDK r29
-        run: sdkmanager "ndk;29.0.14206865"
-
-      - name: Prepare build directories
-        run: mkdir -p build dl src
-
-      - name: Fetch HPN-SSH and create checksum using existing project target
+      - name: Build module
+        env:
+          ANDROID_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          make -C build -f ../all_arches.mk update_openssh_with_tofu \
-            ANDROID_ROOT="$ANDROID_HOME/ndk/29.0.14206865"
+          mkdir build
+          cd build
+          make -f ../all_arches.mk -j$(nproc) zip
 
-      - name: Build original multi-architecture Magisk module
-        run: |
-          make -C build -f ../all_arches.mk -j2 zip \
-            ANDROID_ROOT="$ANDROID_HOME/ndk/29.0.14206865"
-
-      - name: Upload Magisk ZIP
+      - name: Upload module
         uses: actions/upload-artifact@v4
         with:
-          name: MagiskSSH-HPN
-          path: build/magisk_ssh_*.zip
-          if-no-files-found: error
+          name: MagiskSSH
+          path: build/*.zip
